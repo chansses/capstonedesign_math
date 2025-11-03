@@ -30,6 +30,10 @@ class ThresholdDetectionModel:
             온도 기준선
         co2_threshold : float
             CO2 기준선
+        
+        Note:
+        -----
+        High 상태 정의: 온도 > temp_threshold AND CO2 > co2_threshold (둘 다 넘어야 High)
         """
         self.temp_threshold = temp_threshold
         self.co2_threshold = co2_threshold
@@ -101,10 +105,10 @@ class ThresholdDetectionModel:
             
             features_list.append(features)
             
-            # 타겟: 다음 시점이 High 상태인지
+            # 타겟: 다음 시점이 High 상태인지 (AND 조건: 둘 다 넘어야 High)
             next_temp = df.iloc[i+1]['Temp_avg']
             next_co2 = df.iloc[i+1]['S5_CO2']
-            is_high = 1 if (next_temp > self.temp_threshold or next_co2 > self.co2_threshold) else 0
+            is_high = 1 if (next_temp > self.temp_threshold and next_co2 > self.co2_threshold) else 0
             targets.append(is_high)
         
         return np.array(features_list), np.array(targets)
@@ -126,7 +130,6 @@ class ThresholdDetectionModel:
         """
         print("🔄 특징 준비 중...")
         X, y = self.prepare_features(df, window_size)
-        
         print(f"✅ 특징 준비 완료: {X.shape[0]}개 샘플, {X.shape[1]}개 특징")
         print(f"📊 타겟 분포: High={np.sum(y)}개 ({np.sum(y)/len(y)*100:.2f}%), Normal={len(y)-np.sum(y)}개")
         
@@ -313,6 +316,7 @@ def main():
     print("🚀 기준선 초과 탐지 모델 실행 시작")
     print("=" * 70)
     print("💡 목적: 다음 시점에 기준선을 넘을지 미리 예측")
+    print("💡 High 상태 정의: 온도 > 26°C AND CO2 > 1000ppm (둘 다 넘어야 High)")
     print("=" * 70)
     
     # 데이터 로드
