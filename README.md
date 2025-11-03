@@ -8,16 +8,11 @@
 찬세/
 ├── preprocessed_env_dataset.csv                    # 원본 환경 데이터
 ├── env_dataset_natural_oscillating.csv            # 자연스러운 진동 패턴 데이터
-├── env_dataset_refined_natural_oscillating.csv    # 정교한 자연스러운 진동 패턴 데이터
-├── natural_oscillating_patterns_comparison.png    # 패턴 비교 시각화
-├── improved_natural_oscillating_patterns.png      # 개선된 시각화
-├── simple_natural_oscillating_patterns.png        # 간단한 시각화
 ├── create_natural_oscillating_dataset.py          # 자연스러운 진동 패턴 생성 스크립트
-├── create_improved_visualization.py               # 시각화 개선 스크립트
-├── markov_model.py                                # 마르코프 체인 모델 구현
-├── markov_model_explanation.md                     # 마르코프 모델 설명서
-├── markov_transition_matrix.png                   # 상태 전이 행렬 시각화
-├── markov_predictions.png                         # 예측 결과 시각화
+├── threshold_detection_model.py                   # Random Forest 기준선 초과 탐지 모델
+├── natural_oscillating_patterns_comparison.png    # 패턴 비교 시각화
+├── feature_importance.png                         # 특징 중요도 시각화
+├── requirements.txt                                # 필요 라이브러리 목록
 └── README.md                                      # 프로젝트 설명서
 ```
 
@@ -58,16 +53,10 @@ pip install pandas numpy matplotlib seaborn scikit-learn
 python create_natural_oscillating_dataset.py
 ```
 
-### 3. 시각화 생성
+### 3. 기준선 초과 탐지 모델 학습 및 예측
 
 ```bash
-python create_improved_visualization.py
-```
-
-### 4. 마르코프 모델 학습 및 예측
-
-```bash
-python markov_model.py
+python threshold_detection_model.py
 ```
 
 ## 📈 데이터 변형 과정
@@ -225,55 +214,59 @@ temp_noise_level = 0.3          # 온도 측정 오차
 co2_noise_level = 30.0          # CO2 측정 오차
 ```
 
-## 🤖 머신러닝 모델: 마르코프 체인
+## 🤖 머신러닝 모델: Random Forest 기반 기준선 초과 탐지
 
 ### 모델 개요
-환경 데이터의 상태 전이를 학습하여 다음 시점의 상태를 예측하는 마르코프 체인 모델을 구현했습니다.
+다음 시점에 기준선을 넘을지 미리 예측하는 Random Forest 모델을 구현했습니다. 프로젝트 목적에 맞게 **Normal → High 전이 예측**에 최적화되었습니다.
 
-### 상태 정의
-- **Normal** (0): 온도 ≤ 26°C, CO2 ≤ 1000ppm
-- **High_Temp** (1): 온도 > 26°C, CO2 ≤ 1000ppm
-- **High_CO2** (2): 온도 ≤ 26°C, CO2 > 1000ppm
-- **High_Both** (3): 온도 > 26°C, CO2 > 1000ppm
+### 모델 특징
+- **목적**: 기준선 초과를 미리 탐지하여 사전 조치 가능
+- **알고리즘**: Random Forest (특징 기반 예측)
+- **특징**: 온도, CO2, 변화율, 추세, 기준선까지의 거리 등 13개 특징 활용
 
 ### 성능 결과
-- **정확도**: **86.67%** ✅ (목표: 50% 이상)
-- **학습 데이터**: 8,102개
-- **테스트 데이터**: 2,026개
 
-### 상태별 성능
-| 상태 | Precision | Recall | F1-Score | Support |
-|------|-----------|--------|----------|---------|
-| Normal | 0.92 | 0.93 | 0.92 | 1,550 |
-| High_Temp | 0.00 | 0.00 | 0.00 | 10 |
-| High_CO2 | 0.72 | 0.72 | 0.72 | 440 |
-| High_Both | 0.21 | 0.20 | 0.20 | 25 |
+#### 전체 성능
+- **정확도**: **97.63%** ✅
+- **High 상태 탐지 F1-Score**: **98.17%** ✅
+- **Precision**: 98.20% (예측한 High 중 실제 High 비율)
+- **Recall**: 98.14% (실제 High 중 예측한 비율)
 
-### 상태 전이 행렬 특징
-- **자기 자신으로 유지되는 경향이 강함** (대각선 값 0.745 ~ 0.906)
-- **High_Both → High_Both 유지**: 90.6%로 매우 높음
-- **Normal 상태 안정성**: Normal → Normal 전이 확률 90.6%
+#### 핵심 지표: Normal → High 전이 예측
+- **Normal → High 전이 F1-Score**: **78.65%** ✅ (목표: 50% 이상 달성!)
+- **Precision**: 92.92%
+- **Recall**: 68.18%
+- **Normal 상태 사례 수**: 3,580개
+- **실제 High로 전이**: 308개
+
+### 주요 특징 중요도 (상위 5개)
+1. **CO2_Avg_Recent** (최근 평균 CO2): 20.85%
+2. **Dist_to_CO2_Thresh** (CO2 기준선까지 거리): 19.74%
+3. **S5_CO2** (현재 CO2 값): 15.32%
+4. **Temp_Avg_Recent** (최근 평균 온도): 15.05%
+5. **Temp_avg** (현재 온도): 12.01%
 
 ### 사용법
 ```python
-from markov_model import MarkovChainModel
+from threshold_detection_model import ThresholdDetectionModel
 import pandas as pd
 
-# 데이터 로드 및 분할
+# 데이터 로드
 df = pd.read_csv('env_dataset_natural_oscillating.csv')
-df_train = df.iloc[:int(len(df)*0.8)]
-df_test = df.iloc[int(len(df)*0.8):]
 
-# 모델 학습
-model = MarkovChainModel(temp_threshold=26.0, co2_threshold=1000.0)
-model.fit(df_train)
+# 모델 생성 및 학습
+model = ThresholdDetectionModel(temp_threshold=26.0, co2_threshold=1000.0)
+results = model.fit(df, window_size=3)
 
-# 평가
-results = model.evaluate(df_test)
-print(f"정확도: {results['accuracy']:.4f}")
+# 전체 데이터 평가
+eval_results = model.evaluate_on_data(df)
+print(f"Normal→High 전이 F1-Score: {eval_results['normal_to_high_f1']:.4f}")
 ```
 
-자세한 설명은 `markov_model_explanation.md`를 참조하세요.
+### 모델 개선 과정
+1. **초기 시도**: 마르코프 체인 모델 (전체 정확도 86.67%지만 Normal→High F1: 0%)
+2. **문제점 파악**: Normal 상태 예측에만 의존, 실제 목적(High 상태 탐지) 달성 실패
+3. **최종 모델**: Random Forest로 변경, 특징 기반 예측으로 Normal→High F1: 78.65% 달성
 
 ## 📝 주의사항
 
@@ -281,7 +274,7 @@ print(f"정확도: {results['accuracy']:.4f}")
 2. **시간 정보**: Datetime 컬럼은 원본 그대로 유지
 3. **현실성**: 실내 환경에 적합한 값 범위로 제한
 4. **재현성**: 동일한 시드로 실행 시 동일한 결과
-5. **마르코프 모델**: 클래스 불균형으로 인해 소수 클래스(High_Temp, High_Both)의 예측 성능이 낮을 수 있음
+5. **Random Forest 모델**: 클래스 불균형을 `class_weight='balanced'`로 해결하여 High 상태 탐지 성능 향상
 
 ## 🤝 기여
 
