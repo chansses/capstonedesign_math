@@ -14,6 +14,10 @@
 ├── simple_natural_oscillating_patterns.png        # 간단한 시각화
 ├── create_natural_oscillating_dataset.py          # 자연스러운 진동 패턴 생성 스크립트
 ├── create_improved_visualization.py               # 시각화 개선 스크립트
+├── markov_model.py                                # 마르코프 체인 모델 구현
+├── markov_model_explanation.md                     # 마르코프 모델 설명서
+├── markov_transition_matrix.png                   # 상태 전이 행렬 시각화
+├── markov_predictions.png                         # 예측 결과 시각화
 └── README.md                                      # 프로젝트 설명서
 ```
 
@@ -39,7 +43,13 @@
 ### 1. 필요한 라이브러리 설치
 
 ```bash
-pip install pandas numpy matplotlib seaborn
+pip install -r requirements.txt
+```
+
+또는 개별 설치:
+
+```bash
+pip install pandas numpy matplotlib seaborn scikit-learn
 ```
 
 ### 2. 자연스러운 진동 패턴 데이터셋 생성
@@ -52,6 +62,12 @@ python create_natural_oscillating_dataset.py
 
 ```bash
 python create_improved_visualization.py
+```
+
+### 4. 마르코프 모델 학습 및 예측
+
+```bash
+python markov_model.py
 ```
 
 ## 📈 데이터 변형 과정
@@ -209,12 +225,63 @@ temp_noise_level = 0.3          # 온도 측정 오차
 co2_noise_level = 30.0          # CO2 측정 오차
 ```
 
+## 🤖 머신러닝 모델: 마르코프 체인
+
+### 모델 개요
+환경 데이터의 상태 전이를 학습하여 다음 시점의 상태를 예측하는 마르코프 체인 모델을 구현했습니다.
+
+### 상태 정의
+- **Normal** (0): 온도 ≤ 26°C, CO2 ≤ 1000ppm
+- **High_Temp** (1): 온도 > 26°C, CO2 ≤ 1000ppm
+- **High_CO2** (2): 온도 ≤ 26°C, CO2 > 1000ppm
+- **High_Both** (3): 온도 > 26°C, CO2 > 1000ppm
+
+### 성능 결과
+- **정확도**: **86.67%** ✅ (목표: 50% 이상)
+- **학습 데이터**: 8,102개
+- **테스트 데이터**: 2,026개
+
+### 상태별 성능
+| 상태 | Precision | Recall | F1-Score | Support |
+|------|-----------|--------|----------|---------|
+| Normal | 0.92 | 0.93 | 0.92 | 1,550 |
+| High_Temp | 0.00 | 0.00 | 0.00 | 10 |
+| High_CO2 | 0.72 | 0.72 | 0.72 | 440 |
+| High_Both | 0.21 | 0.20 | 0.20 | 25 |
+
+### 상태 전이 행렬 특징
+- **자기 자신으로 유지되는 경향이 강함** (대각선 값 0.745 ~ 0.906)
+- **High_Both → High_Both 유지**: 90.6%로 매우 높음
+- **Normal 상태 안정성**: Normal → Normal 전이 확률 90.6%
+
+### 사용법
+```python
+from markov_model import MarkovChainModel
+import pandas as pd
+
+# 데이터 로드 및 분할
+df = pd.read_csv('env_dataset_natural_oscillating.csv')
+df_train = df.iloc[:int(len(df)*0.8)]
+df_test = df.iloc[int(len(df)*0.8):]
+
+# 모델 학습
+model = MarkovChainModel(temp_threshold=26.0, co2_threshold=1000.0)
+model.fit(df_train)
+
+# 평가
+results = model.evaluate(df_test)
+print(f"정확도: {results['accuracy']:.4f}")
+```
+
+자세한 설명은 `markov_model_explanation.md`를 참조하세요.
+
 ## 📝 주의사항
 
 1. **데이터 크기**: 원본 데이터와 동일한 크기 (10,130개)로 생성
 2. **시간 정보**: Datetime 컬럼은 원본 그대로 유지
 3. **현실성**: 실내 환경에 적합한 값 범위로 제한
 4. **재현성**: 동일한 시드로 실행 시 동일한 결과
+5. **마르코프 모델**: 클래스 불균형으로 인해 소수 클래스(High_Temp, High_Both)의 예측 성능이 낮을 수 있음
 
 ## 🤝 기여
 
